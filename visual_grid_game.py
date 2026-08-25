@@ -168,9 +168,11 @@ class GridGameGUI:
                                       custom_walls=walls)
         #self.agent = ModelBasedAgent()
         # lab03: Use SearchAgent for goal-based planning
-        self.agent = SearchAgent(algo='BFS') # Swap with 'DFS' or 'UCS' to observe behavior
+        #self.agent = SearchAgent(algo='BFS') # Swap with 'DFS' or 'UCS' to observe behavior
         #self.agent = SearchAgent(algo='DFS')  # Swap with 'DFS' or 'UCS' to observe behavior
         #self.agent = SearchAgent(algo='UCS')
+        #lab04
+        self.agent = SearchAgent(algo='AStar')
 
 
         # Dynamically calculate cell size so the total canvas fits nicely within a 600x600 window ceiling

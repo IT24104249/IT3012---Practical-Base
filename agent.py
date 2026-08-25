@@ -2,6 +2,7 @@
 import random
 from collections import deque
 import heapq
+import math
 
 class GreedyGridAgent:
     """A simple agent that tries to move around systematically to clear the grid."""
@@ -61,6 +62,22 @@ class SearchAgent:
         self.plan = []  # Holds the calculated sequence of actions
         self.active_algo = algo  # Active algorithm ('BFS', 'DFS', or 'UCS')
 
+    ############lab04
+    # --- NEW HEURISTIC METHODS (Step 1.1) ---
+    def manhattan_distance(self, pos, goal):
+        """Calculates grid distance using h(n) = |x1 - x2| + |y1 - y2|."""
+        x1, y1 = pos
+        x2, y2 = goal
+        return abs(x1 - x2) + abs(y1 - y2)
+
+    def euclidean_distance(self, pos, goal):
+        """Calculates straight-line distance using h(n) = sqrt((x1 - x2)^2 + (y1 - y2)^2)."""
+        x1, y1 = pos
+        x2, y2 = goal
+        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+
+    ############## END lab 04
+    
     def _get_neighbors(self, current_pos, walls, grid_size):
         """Helper method to return valid adjacent tiles and movement actions."""
         x, y = current_pos
@@ -126,8 +143,9 @@ class SearchAgent:
                     heapq.heappush(frontier, (new_cost, counter, next_pos, path + [action]))
         return None
 
+    """
     def sense_and_act(self, percept: dict) -> str:
-        """Executes one action per tick from the generated plan."""
+        #Executes one action per tick from the generated plan.
         # Step 1: Generate plan if empty
         if not self.plan:
             start_pos = percept['agent_pos']
@@ -153,3 +171,85 @@ class SearchAgent:
         if self.plan:
             return self.plan.pop(0)
         return 'Up'
+
+    """
+    #########lab04
+    #integrated A* Search
+    def sense_and_act(self, percept: dict) -> str:
+        """Executes one action per tick from the generated plan."""
+        if not self.plan:
+            start_pos = percept['agent_pos']
+            all_food = percept['all_food']
+            walls = set(percept['walls'])
+            grid_size = percept['grid_size']
+
+            if not all_food:
+                return 'Up'
+
+            # Find closest food pellet using Manhattan Distance
+            closest_food = min(all_food, key=lambda f: abs(f[0] - start_pos[0]) + abs(f[1] - start_pos[1]))
+
+            # Algorithm Selector
+            if self.active_algo == 'BFS':
+                self.plan = self.bfs_search(start_pos, closest_food, walls, grid_size) or []
+            elif self.active_algo == 'DFS':
+                self.plan = self.dfs_search(start_pos, closest_food, walls, grid_size) or []
+            elif self.active_algo == 'UCS':
+                self.plan = self.ucs_search(start_pos, closest_food, walls, grid_size) or []
+            elif self.active_algo == 'AStar':  # Step 1.3: Integrated A* Search
+                self.plan = self.astar_search(start_pos, closest_food, walls, grid_size, heuristic_type='manhattan') or []
+
+        if self.plan:
+            return self.plan.pop(0)
+        return 'Up'
+
+    
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+        """A* Search: Explores nodes with the lowest projected cost f(n) = g(n) + h(n)."""
+        
+        # 1. Select the requested heuristic function
+        if heuristic_type == 'manhattan':
+            h_func = self.manhattan_distance
+        else:
+            h_func = self.euclidean_distance
+
+        # 2. Initialize starting costs
+        g_cost = 0
+        h_cost = h_func(start_pos, goal_pos)
+        f_cost = g_cost + h_cost
+
+        # Priority Queue element format: (f_cost, g_cost, current_pos, path_taken)
+        frontier = [(f_cost, g_cost, start_pos, [])]
+        reached_states = set()  # Tracks visited coordinates
+
+        while frontier:
+            # Pop node with the lowest f_cost
+            f, g, curr_pos, path = heapq.heappop(frontier)
+
+            if curr_pos == goal_pos:
+                return path
+
+            if curr_pos not in reached_states:
+                reached_states.add(curr_pos)
+
+                # Expand adjacent cells (Up, Down, Left, Right)
+                for action, next_pos in self._get_neighbors(curr_pos, walls, grid_size):
+                    if next_pos not in reached_states:
+                        g_new = g + 1
+                        h_new = h_func(next_pos, goal_pos)
+                        f_new = g_new + h_new
+                        heapq.heappush(frontier, (f_new, g_new, next_pos, path + [action]))
+
+        return None
+        #############end lab04
+
+
+#######lab 04
+if __name__ == "__main__":
+     agent = SearchAgent()
+     start = (0, 0)
+     goal = (3, 4)
+     print("Manhattan Distance:", agent.manhattan_distance(start, goal))  # Expected: 7
+     print("Euclidean Distance:", agent.euclidean_distance(start, goal))  # Expected: 5.0
+
+#####end lab04
