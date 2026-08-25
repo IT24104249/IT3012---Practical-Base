@@ -3,6 +3,7 @@ import random
 from collections import deque
 import heapq
 import math
+from logic_engine import KnowledgeBase
 
 class GreedyGridAgent:
     """A simple agent that tries to move around systematically to clear the grid."""
@@ -58,9 +59,19 @@ class ModelBasedAgent:
 class SearchAgent:
     """A Goal-Based Agent that plans step-by-step routes using graph search algorithms."""
 
-    def __init__(self, algo='BFS'):
+    #def __init__(self, algo='BFS'):
+    #lab05
+    def __init__(self, algo='AStar'):
         self.plan = []  # Holds the calculated sequence of actions
         self.active_algo = algo  # Active algorithm ('BFS', 'DFS', or 'UCS')
+    # Instantiate Knowledge Base 
+        self.kb = KnowledgeBase()
+
+    # Define Safety Rules (Horn Clauses)
+    # Rule 1: TargetVisible AND HasDust -> SafeToEngage
+        self.kb.tell_rule(['TargetVisible', 'HasDust'], 'SafeToEngage')
+    # Rule 2: SafeToEngage AND BloodseekerMissing -> Retreat
+        self.kb.tell_rule(['SafeToEngage', 'BloodseekerMissing'], 'Retreat')
 
     ############lab04
     # --- NEW HEURISTIC METHODS (Step 1.1) ---
@@ -197,14 +208,14 @@ class SearchAgent:
             elif self.active_algo == 'UCS':
                 self.plan = self.ucs_search(start_pos, closest_food, walls, grid_size) or []
             elif self.active_algo == 'AStar':  # Step 1.3: Integrated A* Search
-                self.plan = self.astar_search(start_pos, closest_food, walls, grid_size, heuristic_type='manhattan') or []
+                self.plan = self.astar_search(start_pos, closest_food, walls, grid_size, percept=percept, heuristic_type='manhattan') or []
 
         if self.plan:
             return self.plan.pop(0)
         return 'Up'
 
     
-    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, percept=None, heuristic_type='manhattan'):
         """A* Search: Explores nodes with the lowest projected cost f(n) = g(n) + h(n)."""
         
         # 1. Select the requested heuristic function
@@ -235,6 +246,27 @@ class SearchAgent:
                 # Expand adjacent cells (Up, Down, Left, Right)
                 for action, next_pos in self._get_neighbors(curr_pos, walls, grid_size):
                     if next_pos not in reached_states:
+
+                        # --- LAB 05: LOGICAL FEASIBILITY CHECK ---
+                        self.kb.clear_facts()  # Step 3.2.2: Clear previous facts
+
+                        # Step 3.2.3: Feed tile percepts into KB[cite: 8]
+                        if percept:
+                            if percept.get('target_visible'):
+                                self.kb.tell_fact('TargetVisible')
+                            if percept.get('has_dust'):
+                                self.kb.tell_fact('HasDust')
+                            if percept.get('bloodseeker_missing'):
+                                self.kb.tell_fact('BloodseekerMissing')
+
+                        # Step 3.2.4: Deduce new facts via Forward Chaining
+                        self.kb.forward_chain()
+
+                        # Step 3.2.5: Mark tile infeasible if Retreat is deduced
+                        if 'Retreat' in self.kb.facts:
+                            continue  # Skip dangerous tile completely
+
+                        # Calculate path cost if logically feasible
                         g_new = g + 1
                         h_new = h_func(next_pos, goal_pos)
                         f_new = g_new + h_new
